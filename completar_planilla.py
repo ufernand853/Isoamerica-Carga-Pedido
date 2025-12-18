@@ -1,15 +1,68 @@
 import os
 from datetime import datetime
+import argparse
+import importlib.util
+
+if importlib.util.find_spec("tkinter") is not None:
+    import tkinter as tk
+    from tkinter import filedialog
+    TK_AVAILABLE = True
+else:
+    tk = None
+    filedialog = None
+    TK_AVAILABLE = False
 
 import pandas as pd
-import tkinter as tk
 from openpyxl import load_workbook
-from tkinter import filedialog
 
 # === CONFIGURACIÓN ===
+CONFIG_ARCHIVOS = "config_archivos.txt"
 PEDIDO_FILE = "Planilla pedido 10.12.2025 Destino.xlsx"
 LISTADO_FILE = "Listado general para PLANILLAS TRADU BRs.xlsx"
 OUTPUT_FILE = "Planilla pedido 10.12.2025 Destino_COMPLETADA.xlsx"
+# Guarda la salida configurada explícitamente en config_archivos.txt (si existe)
+_OUTPUT_FILE_CONFIGURADO = None
+
+
+def _leer_config_archivos(path=CONFIG_ARCHIVOS):
+    """
+    Carga nombres de archivos desde un archivo de texto opcional con formato clave=valor.
+    Claves reconocidas: pedido, listado, salida/output.
+    """
+
+    if not os.path.isfile(path):
+        return {}
+
+    config = {}
+    with open(path, "r", encoding="utf-8") as f:
+        for linea in f:
+            entrada = linea.strip()
+            if not entrada or entrada.startswith("#") or "=" not in entrada:
+                continue
+
+            clave, valor = entrada.split("=", 1)
+            clave = clave.strip().lower()
+            valor = valor.strip()
+            if valor:
+                config[clave] = valor
+    return config
+
+
+def _aplicar_config_archivos(config):
+    global PEDIDO_FILE, LISTADO_FILE, OUTPUT_FILE, _OUTPUT_FILE_CONFIGURADO
+
+    PEDIDO_FILE = config.get("pedido", PEDIDO_FILE)
+    LISTADO_FILE = config.get("listado", LISTADO_FILE)
+    salida_config = config.get("salida", config.get("output"))
+
+    if salida_config:
+        OUTPUT_FILE = salida_config
+        _OUTPUT_FILE_CONFIGURADO = salida_config
+
+
+_CONFIG_ARCHIVOS = _leer_config_archivos()
+if _CONFIG_ARCHIVOS:
+    _aplicar_config_archivos(_CONFIG_ARCHIVOS)
 
 # Nombre de hoja (None = primera)
 PEDIDO_SHEET = None
@@ -130,36 +183,168 @@ def completar_planilla_pedido(pedido_path, listado_path, output_path):
     print(f"Archivo generado: {output_path}")
 
 
-def seleccionar_archivos_gui():
-    root = tk.Tk()
-    root.withdraw()
+def _generar_output(pedido_path, explicit_output=None):
+    """Devuelve la ruta de salida priorizando la configuración del TXT."""
 
-    listado_path = filedialog.askopenfilename(
-        title="Seleccione planilla general",
-        filetypes=[("Archivos de Excel", "*.xlsx *.xlsm *.xls")],
+    if explicit_output:
+        return explicit_output
+
+    # Si el usuario definió una salida en config_archivos.txt, úsala siempre
+    if _OUTPUT_FILE_CONFIGURADO:
+        return _OUTPUT_FILE_CONFIGURADO
+
+    # Si no hay configuración específica, sugerimos una salida junto al pedido
+    folder = os.path.dirname(pedido_path) or "."
+    nombre_archivo = os.path.basename(pedido_path)
+    nombre, ext = os.path.splitext(nombre_archivo)
+    fecha = datetime.now().strftime("%Y-%m-%d")
+    if not ext:
+        ext = ".xlsx"
+
+    return os.path.join(folder, f"{nombre}_procesada_{fecha}{ext}")
+
+
+def _solicitar_ruta(mensaje, predeterminada=None):
+    ruta = input(mensaje).strip()
+    if not ruta and predeterminada:
+        return predeterminada
+    return ruta or None
+
+
+def _ruta_predeterminada(ruta):
+    return ruta if os.path.exists(ruta) else None
+
+
+def _seleccionar_archivo_gui(titulo, archivo_sugerido):
+    return filedialog.askopenfilename(
+        title=titulo,
+        initialdir=os.path.dirname(archivo_sugerido) or ".",
+        initialfile=os.path.basename(archivo_sugerido),
+        filetypes=[("Archivos de Excel", "*.xlsx"), ("Todos los archivos", "*.*")],
     )
-    pedido_path = filedialog.askopenfilename(
-        title="Seleccione planilla final",
-        filetypes=[("Archivos de Excel", "*.xlsx *.xlsm *.xls")],
+
+
+def _seleccionar_salida_gui(titulo, ruta_sugerida):
+    carpeta = os.path.dirname(ruta_sugerida) or "."
+    archivo = os.path.basename(ruta_sugerida) or os.path.basename(OUTPUT_FILE)
+    return filedialog.asksaveasfilename(
+        title=titulo,
+        defaultextension=".xlsx",
+        initialdir=carpeta,
+        initialfile=archivo,
+        filetypes=[("Archivos de Excel", "*.xlsx"), ("Todos los archivos", "*.*")],
     )
-    output_path = None
 
-    if pedido_path:
-        folder = os.path.dirname(pedido_path)
-        nombre_archivo = os.path.basename(pedido_path)
-        nombre, ext = os.path.splitext(nombre_archivo)
-        fecha = datetime.now().strftime("%Y-%m-%d")
-        if not ext:
-            ext = ".xlsx"
 
-        output_path = os.path.join(folder, f"{nombre}_procesada_{fecha}{ext}")
+def seleccionar_archivos_cli(args):
+    pedido_path = args.pedido or _ruta_predeterminada(PEDIDO_FILE)
+    listado_path = args.listado or _ruta_predeterminada(LISTADO_FILE)
 
-    root.destroy()
+    if not pedido_path:
+        pedido_path = _solicitar_ruta(
+            f"Ruta de la planilla de pedido [{PEDIDO_FILE}]: ", predeterminada=PEDIDO_FILE
+        )
+
+    if not listado_path:
+        listado_path = _solicitar_ruta(
+            f"Ruta del listado general [{LISTADO_FILE}]: ", predeterminada=LISTADO_FILE
+        )
+
+    output_path = _generar_output(pedido_path, args.output) if pedido_path else args.output
+
+    if not output_path:
+        output_path = _solicitar_ruta(
+            f"Ruta de salida [{OUTPUT_FILE}]: ", predeterminada=OUTPUT_FILE
+        )
 
     return pedido_path, listado_path, output_path
 
+
+def seleccionar_archivos_gui(args):
+    if not TK_AVAILABLE:
+        raise ImportError(
+            "Tkinter no está disponible en este entorno. Instálalo (ej. python3-tk) o usa --cli."
+        )
+
+    root = tk.Tk()
+    root.withdraw()
+
+    pedido_predeterminado = args.pedido or _ruta_predeterminada(PEDIDO_FILE) or PEDIDO_FILE
+    pedido_path = args.pedido or _seleccionar_archivo_gui(
+        "Selecciona la planilla de pedido", pedido_predeterminado
+    )
+
+    listado_predeterminado = args.listado or _ruta_predeterminada(LISTADO_FILE) or LISTADO_FILE
+    listado_path = args.listado or _seleccionar_archivo_gui(
+        "Selecciona el listado general", listado_predeterminado
+    )
+
+    output_sugerida = _generar_output(pedido_path, args.output) if pedido_path else args.output
+    output_sugerida = output_sugerida or OUTPUT_FILE
+    output_path = _seleccionar_salida_gui(
+        "Guardar planilla completada como", output_sugerida
+    ) if output_sugerida else None
+
+    root.destroy()
+    return pedido_path or None, listado_path or None, output_path or None
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(
+        description=(
+            "Completa la planilla de pedido usando datos del listado general. "
+            "Si no se especifican rutas, se solicitarán por consola."
+        )
+    )
+    parser.add_argument("--pedido", help="Ruta del archivo de planilla de pedido")
+    parser.add_argument("--listado", help="Ruta del archivo con el listado general")
+    parser.add_argument(
+        "--output",
+        help=(
+            "Ruta del archivo de salida. Si no se especifica, se generará junto "
+            "a la planilla de pedido con sufijo procesada_FECHA."
+        ),
+    )
+    parser.add_argument(
+        "--pedido-sheet",
+        dest="pedido_sheet",
+        default=PEDIDO_SHEET,
+        help="Nombre de la hoja de pedido (por defecto, la primera)",
+    )
+    parser.add_argument(
+        "--listado-sheet",
+        dest="listado_sheet",
+        default=LISTADO_SHEET,
+        help="Nombre de la hoja del listado (por defecto, la primera)",
+    )
+    parser.add_argument(
+        "--cli",
+        action="store_true",
+        help="Usar la selección de archivos por consola en lugar de la interfaz Tkinter.",
+    )
+    return parser
+
 if __name__ == "__main__":
-    pedido_path, listado_path, output_path = seleccionar_archivos_gui()
+    parser = build_parser()
+    args = parser.parse_args()
+
+    # Permitir sobrescribir hojas mediante argumentos
+    if args.pedido_sheet is not None:
+        PEDIDO_SHEET = args.pedido_sheet
+    if args.listado_sheet is not None:
+        LISTADO_SHEET = args.listado_sheet
+
+    if args.cli:
+        pedido_path, listado_path, output_path = seleccionar_archivos_cli(args)
+    else:
+        if TK_AVAILABLE:
+            pedido_path, listado_path, output_path = seleccionar_archivos_gui(args)
+        else:
+            print(
+                "Tkinter no está instalado en este intérprete. "
+                "Usando el modo consola (--cli)."
+            )
+            pedido_path, listado_path, output_path = seleccionar_archivos_cli(args)
 
     if pedido_path and listado_path and output_path:
         completar_planilla_pedido(pedido_path, listado_path, output_path)
