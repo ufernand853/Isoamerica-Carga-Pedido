@@ -29,7 +29,7 @@ python completar_planilla.py [--pedido RUTA_PEDIDO] [--listado RUTA_LISTADO] [--
 ```
 
 - Si no proporcionas rutas, el script abrirá diálogos de selección usando Tkinter. Con `--cli`, solicitará las rutas por consola.
-- El archivo de salida se genera junto a la planilla de pedido con sufijo `procesada_YYYY-MM-DD`, salvo que indiques `--output`.
+- Si defines `salida`/`output` en `config_archivos.txt`, ese valor se usa como archivo de salida por defecto. Si no, se genera junto a la planilla de pedido con sufijo `procesada_YYYY-MM-DD`, salvo que indiques `--output`.
 - Puedes definir los nombres o rutas por defecto en `config_archivos.txt` usando formato `clave=valor` (claves: `pedido`, `listado`, `salida`/`output`). Si falta el archivo o alguna clave, se usan los valores por defecto incluidos.
   
 Ejemplo especificando rutas:
