@@ -1,3 +1,6 @@
+import os
+from datetime import datetime
+
 import pandas as pd
 import tkinter as tk
 from openpyxl import load_workbook
@@ -132,18 +135,24 @@ def seleccionar_archivos_gui():
     root.withdraw()
 
     pedido_path = filedialog.askopenfilename(
-        title="Seleccionar planilla de pedido",
+        title="Seleccione planilla final",
         filetypes=[("Archivos de Excel", "*.xlsx *.xlsm *.xls")],
     )
     listado_path = filedialog.askopenfilename(
-        title="Seleccionar listado general",
+        title="Seleccione planilla general",
         filetypes=[("Archivos de Excel", "*.xlsx *.xlsm *.xls")],
     )
-    output_path = filedialog.asksaveasfilename(
-        title="Guardar planilla completada",
-        defaultextension=".xlsx",
-        filetypes=[("Archivos de Excel", "*.xlsx"), ("Todos los archivos", "*.*")],
-    )
+    output_path = None
+
+    if pedido_path:
+        folder = os.path.dirname(pedido_path)
+        nombre_archivo = os.path.basename(pedido_path)
+        nombre, ext = os.path.splitext(nombre_archivo)
+        fecha = datetime.now().strftime("%Y-%m-%d")
+        if not ext:
+            ext = ".xlsx"
+
+        output_path = os.path.join(folder, f"{nombre}_procesada_{fecha}{ext}")
 
     root.destroy()
 
