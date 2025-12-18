@@ -134,12 +134,12 @@ def seleccionar_archivos_gui():
     root = tk.Tk()
     root.withdraw()
 
-    pedido_path = filedialog.askopenfilename(
-        title="Seleccione planilla final",
-        filetypes=[("Archivos de Excel", "*.xlsx *.xlsm *.xls")],
-    )
     listado_path = filedialog.askopenfilename(
         title="Seleccione planilla general",
+        filetypes=[("Archivos de Excel", "*.xlsx *.xlsm *.xls")],
+    )
+    pedido_path = filedialog.askopenfilename(
+        title="Seleccione planilla final",
         filetypes=[("Archivos de Excel", "*.xlsx *.xlsm *.xls")],
     )
     output_path = None
