@@ -1,5 +1,7 @@
 import pandas as pd
+import tkinter as tk
 from openpyxl import load_workbook
+from tkinter import filedialog
 
 # === CONFIGURACIÓN ===
 PEDIDO_FILE = "Planilla pedido 10.12.2025 Destino.xlsx"
@@ -62,17 +64,17 @@ def construir_diccionario(listado, key_col):
     listado_key = listado_key.drop_duplicates(subset=key_col, keep="first")
     return listado_key.set_index(key_col)
 
-def completar_planilla_pedido():
+def completar_planilla_pedido(pedido_path, listado_path, output_path):
     # --- Cargar listado general ---
-    listado = cargar_listado(LISTADO_FILE, LISTADO_SHEET)
+    listado = cargar_listado(listado_path, LISTADO_SHEET)
     indexado = construir_diccionario(listado, LISTADO_KEY_COL)
 
     # --- Cargar planilla de pedido como DataFrame para identificar columnas ---
     # header=4 porque los encabezados reales están en la fila 5 de Excel
     if PEDIDO_SHEET is None:
-        pedido_raw = pd.read_excel(PEDIDO_FILE, sheet_name=0, header=4)
+        pedido_raw = pd.read_excel(pedido_path, sheet_name=0, header=4)
     else:
-        pedido_raw = pd.read_excel(PEDIDO_FILE, sheet_name=PEDIDO_SHEET, header=4)
+        pedido_raw = pd.read_excel(pedido_path, sheet_name=PEDIDO_SHEET, header=4)
 
     # La primera fila de pedido_raw contiene los nombres de las columnas
     header_row = pedido_raw.iloc[0]
@@ -83,7 +85,7 @@ def completar_planilla_pedido():
     pedido_data[PEDIDO_KEY_COL] = pedido_data[PEDIDO_KEY_COL].astype(str).str.strip()
 
     # --- Abrir el Excel original con openpyxl para mantener formato ---
-    wb = load_workbook(PEDIDO_FILE)
+    wb = load_workbook(pedido_path)
     ws = wb[wb.sheetnames[0]] if PEDIDO_SHEET is None else wb[PEDIDO_SHEET]
 
     # La primera fila de datos (Item 1) es la fila 6 de Excel.
@@ -118,11 +120,39 @@ def completar_planilla_pedido():
 
                 ws.cell(row=excel_row, column=excel_col, value=valor)
 
-    wb.save(OUTPUT_FILE)
+    wb.save(output_path)
 
     print(f"Filas procesadas (con código en la columna E): {total_rows}")
     print(f"Filas con coincidencia en el listado: {matched_rows}")
-    print(f"Archivo generado: {OUTPUT_FILE}")
+    print(f"Archivo generado: {output_path}")
+
+
+def seleccionar_archivos_gui():
+    root = tk.Tk()
+    root.withdraw()
+
+    pedido_path = filedialog.askopenfilename(
+        title="Seleccionar planilla de pedido",
+        filetypes=[("Archivos de Excel", "*.xlsx *.xlsm *.xls")],
+    )
+    listado_path = filedialog.askopenfilename(
+        title="Seleccionar listado general",
+        filetypes=[("Archivos de Excel", "*.xlsx *.xlsm *.xls")],
+    )
+    output_path = filedialog.asksaveasfilename(
+        title="Guardar planilla completada",
+        defaultextension=".xlsx",
+        filetypes=[("Archivos de Excel", "*.xlsx"), ("Todos los archivos", "*.*")],
+    )
+
+    root.destroy()
+
+    return pedido_path, listado_path, output_path
 
 if __name__ == "__main__":
-    completar_planilla_pedido()
+    pedido_path, listado_path, output_path = seleccionar_archivos_gui()
+
+    if pedido_path and listado_path and output_path:
+        completar_planilla_pedido(pedido_path, listado_path, output_path)
+    else:
+        print("Selección cancelada. No se procesó ninguna planilla.")
