@@ -1,0 +1,6 @@
+# Configura aquí los nombres o rutas de los archivos Excel.
+# Formato: clave=valor
+# Claves válidas: pedido, listado, salida (o output)
+pedido=Planilla pedido 10.12.2025 Destino.xlsx
+listado=Listado general para PLANILLAS TRADU BRs.xlsx
+salida=Planilla pedido 10.12.2025 Destino_COMPLETADA.xlsx

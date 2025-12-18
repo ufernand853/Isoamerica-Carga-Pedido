@@ -16,9 +16,47 @@ import pandas as pd
 from openpyxl import load_workbook
 
 # === CONFIGURACIÓN ===
+CONFIG_ARCHIVOS = "config_archivos.txt"
 PEDIDO_FILE = "Planilla pedido 10.12.2025 Destino.xlsx"
 LISTADO_FILE = "Listado general para PLANILLAS TRADU BRs.xlsx"
 OUTPUT_FILE = "Planilla pedido 10.12.2025 Destino_COMPLETADA.xlsx"
+
+
+def _leer_config_archivos(path=CONFIG_ARCHIVOS):
+    """
+    Carga nombres de archivos desde un archivo de texto opcional con formato clave=valor.
+    Claves reconocidas: pedido, listado, salida/output.
+    """
+
+    if not os.path.isfile(path):
+        return {}
+
+    config = {}
+    with open(path, "r", encoding="utf-8") as f:
+        for linea in f:
+            entrada = linea.strip()
+            if not entrada or entrada.startswith("#") or "=" not in entrada:
+                continue
+
+            clave, valor = entrada.split("=", 1)
+            clave = clave.strip().lower()
+            valor = valor.strip()
+            if valor:
+                config[clave] = valor
+    return config
+
+
+def _aplicar_config_archivos(config):
+    global PEDIDO_FILE, LISTADO_FILE, OUTPUT_FILE
+
+    PEDIDO_FILE = config.get("pedido", PEDIDO_FILE)
+    LISTADO_FILE = config.get("listado", LISTADO_FILE)
+    OUTPUT_FILE = config.get("salida", config.get("output", OUTPUT_FILE))
+
+
+_CONFIG_ARCHIVOS = _leer_config_archivos()
+if _CONFIG_ARCHIVOS:
+    _aplicar_config_archivos(_CONFIG_ARCHIVOS)
 
 # Nombre de hoja (None = primera)
 PEDIDO_SHEET = None
