@@ -105,6 +105,12 @@ if _CONFIG_ARCHIVOS:
 PEDIDO_SHEET = None
 LISTADO_SHEET = None
 
+# Fila (base 0 para pandas) donde están los encabezados reales de la planilla
+PEDIDO_HEADER_ROW_IDX = 5  # En Excel es la fila 6
+
+# Primera fila de datos en Excel (1-indexed, justo después de los encabezados)
+PEDIDO_DATA_START_ROW = PEDIDO_HEADER_ROW_IDX + 2  # 6 (encabezado) + 1 = 7
+
 # Nombre de la columna clave en la planilla de pedido (columna E en tu ejemplo)
 PEDIDO_KEY_COL = "Codigo Principal"
 
@@ -163,16 +169,10 @@ def completar_planilla_pedido(pedido_path, listado_path, output_path):
     indexado = construir_diccionario(listado, LISTADO_KEY_COL)
 
     # --- Cargar planilla de pedido como DataFrame para identificar columnas ---
-    # header=4 porque los encabezados reales están en la fila 5 de Excel
     if PEDIDO_SHEET is None:
-        pedido_raw = pd.read_excel(pedido_path, sheet_name=0, header=4)
+        pedido_data = pd.read_excel(pedido_path, sheet_name=0, header=PEDIDO_HEADER_ROW_IDX)
     else:
-        pedido_raw = pd.read_excel(pedido_path, sheet_name=PEDIDO_SHEET, header=4)
-
-    # La primera fila de pedido_raw contiene los nombres de las columnas
-    header_row = pedido_raw.iloc[0]
-    pedido_data = pedido_raw[1:].copy()
-    pedido_data.columns = header_row
+        pedido_data = pd.read_excel(pedido_path, sheet_name=PEDIDO_SHEET, header=PEDIDO_HEADER_ROW_IDX)
 
     # Normalizar la columna clave de pedido
     pedido_data[PEDIDO_KEY_COL] = pedido_data[PEDIDO_KEY_COL].astype(str).str.strip()
@@ -181,9 +181,8 @@ def completar_planilla_pedido(pedido_path, listado_path, output_path):
     wb = load_workbook(pedido_path)
     ws = wb[wb.sheetnames[0]] if PEDIDO_SHEET is None else wb[PEDIDO_SHEET]
 
-    # La primera fila de datos (Item 1) es la fila 6 de Excel.
-    # En el DataFrame, la primera fila de datos tiene índice 1, por lo que:
-    # fila_excel = índice_df + 5
+    # En Excel, los encabezados están en la fila 6, de modo que los datos comienzan en la fila 7.
+    # El DataFrame arranca en índice 0, por lo que usamos PEDIDO_DATA_START_ROW para alinear.
     total_rows = 0
     matched_rows = 0
 
@@ -197,7 +196,7 @@ def completar_planilla_pedido(pedido_path, listado_path, output_path):
         if codigo in indexado.index:
             matched_rows += 1
             fuente = indexado.loc[codigo]
-            excel_row = idx + 5  # ver comentario arriba
+            excel_row = idx + PEDIDO_DATA_START_ROW  # alinear con filas reales de Excel
 
             for destino_col, origen_col in COLUMN_MAPPING.items():
                 if origen_col not in fuente.index:
